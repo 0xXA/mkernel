@@ -205,7 +205,7 @@ Options:
 -d      Enable debug options for compilation.
 -f      Force overwrite already built packages.
 -h      Show usage and exit.
--p      Select arbitary prop file
+-p      Select arbitrary prop file
 -q      Suppress everything that is printed to stdout. This makes build logs much less verbose but errors may still be shown.
 -v      Show version information and exit.
 STDOUT
