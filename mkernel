@@ -6,6 +6,9 @@
 #
 # Kernel building script and handling it afterwards.
 
+shopt -s inherit_errexit
+set -Eeuo pipefail
+
 umask 0077
 
 set -a 
@@ -13,13 +16,11 @@ MKERNEL_PROGRAM="$(basename "${0}")"
 MKERNEL_VERSION="0.1-Alpha"
 MKERNEL_ACTION="build_kernel"
 MKERNEL_DISABLE_STDOUT=""
-MKERNEL_KERNEL_IMG="Image.gz-dtb"
 MKERNEL_PROP_FILE="mkernel.cfg"
 MKERNEL_TOP_DIR="${HOME}/.mkernel"
 MKERNEL_PROP_DIR="`pwd`"
 MKERNEL_BUILD_DIR=""
 MKERNEL_ENABLE_DEBUG_BUILD=""
-MKERNEL_DEFCONFIG=""
 set +a
 
 trap '' QUIT
@@ -41,19 +42,25 @@ function pr_err {
 }
 
 function check_shell {
-	[[ -z "${BASH}" ]] || [[ ${BASH_VERSINFO} < 4 ]] && \
+	if [[ -z "${BASH}" ]] || [[ ${BASH_VERSINFO} < 4 ]]; then
 		pr_err "This script can only be executed in bash 4+"
+	fi
 }
 
 function get_manifest {
-	[[ ! -e "${MKERNEL_PROP_FILE}" ]] && {
+	if [[ ! -e "${MKERNEL_PROP_FILE}" ]]; then
 		: $(find ${HOME} -name "${MKERNEL_PROP_FILE}")
 		[[ ! -e "${_:?}" ]] && pr_err "${MKERNEL_PROP_FILE} can't be located, is it even exist's ?"
 		MKERNEL_PROP_FILE="${_}"
-	}
+	fi
 }
 
 function read_manifest {
+	set -a
+	MKERNEL_KSOURCE_URL=""
+	MKERNEL_DEFCONFIG=""
+	MKERNEL_KERNEL_IMG="Image.gz-dtb"
+	set +a
 	if bash -n "${MKERNEL_PROP_FILE}"; then
 		set -a
 		. "${MKERNEL_PROP_FILE}"
@@ -78,7 +85,7 @@ function abort {
 
 function kinfo {
 	local KIMG="$(find "${MKERNEL_BUILD_DIR}" -type f -name ${MKERNEL_KERNEL_IMG})"
-	[[ -n "${KIMG}" ]] && {
+	if [[ -n "${KIMG}" ]]; then
 		cp ${KIMG} `pwd`/
 		set -a
 	                MKERNEL_KERNEL_IMG="`pwd`/${MKERNEL_KERNEL_IMG}"
@@ -86,7 +93,7 @@ function kinfo {
 			MKERNEL_KERNEL_SHA256=$(openssl dgst -sha256 ${KIMG}|sed 's/SHA256.*= //')
 			MKERNEL_KERNEL_MD5=$(openssl dgst -md5 ${KIMG}|sed 's/MD5.*= //')
 		set +a
-	}
+	fi
 }
 
 function download_archieve {
