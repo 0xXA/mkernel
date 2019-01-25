@@ -201,12 +201,12 @@ A tool for building kernels standalone
 
 Options:
 
+-c      Create flashable kernel archieve using ak2
 -d      Enable debug options for compilation.
 -f      Force overwrite already built packages.
--g      Compute checksums for source files.
 -h      Show usage and exit.
+-p      Select arbitary prop file
 -q      Suppress everything that is printed to stdout. This makes build logs much less verbose but errors may still be shown.
--D      download files from URLs instead of using from current directory."
 -v      Show version information and exit.
 STDOUT
         ;;
