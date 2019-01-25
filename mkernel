@@ -63,40 +63,6 @@ function read_manifest {
 	fi
 }
 
-function build_kernel {
-	check_shell
-	get_manifest
-	read_manifest
-
-	[[ ! -e ${MKERNEL_TOP_DIR} ]] && \
-		mkdir -p ${MKERNEL_TOP_DIR}
-
-	exec {KBUILD_LOCK}>"${MKERNEL_TOP_DIR}/.mkernel.lock"
-	if ! flock -n "${KBUILD_LOCK}"; then
-		pr_err "Error: another build process for package ${MKERNEL_KERNEL_NAME} is running."
-	fi
-	
-	[[ -z "${MKERNEL_BUILD_DIR}" ]] && {
-		MKERNEL_BUILD_DIR="${MKERNEL_TOP_DIR}/${MKERNEL_DEFCONFIG/_*}"
-	        [[ ! -e "${MKERNEL_BUILD_DIR}" ]] && \
-			mkdir -p ${MKERNEL_BUILD_DIR}
-	}
-
-        [[ -n "${MKERNEL_KSOURCE_URL}" ]] && {
-		download_archieve "${MKERNEL_KSOURCE_URL}" "${MKERNEL_BUILD_DIR}"
-	}
-	trap 'success' EXIT
-	if [[ -n "${MKERNEL_CREATE_LOGFILE}" ]];then 
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?} &>> ${MKERNEL_DEFCONFIG}.log
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} &>> ${MKERNEL_DEFCONFIG/_*}_kernel.log
-	else
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?}
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR}
-	fi
-	trap '' EXIT
-	flock -u "${KBUILD_LOCK}"
-}
-
 function clean {
 	make -j${NUM_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} clean
 }
@@ -161,6 +127,40 @@ function success {
 	printf '%s\n' "KERNEL_SHA256=${MKERNEL_KERNEL_SHA256:-}"
 	printf '%s\n' "KERNEL_MD5=${MKERNEL_KERNEL_MD5:-}"
 } >> "GENERATED_KERNEL.info"
+}
+
+function build_kernel {
+	check_shell
+	get_manifest
+	read_manifest
+
+	[[ ! -e ${MKERNEL_TOP_DIR} ]] && \
+		mkdir -p ${MKERNEL_TOP_DIR}
+
+	exec {KBUILD_LOCK}>"${MKERNEL_TOP_DIR}/.mkernel.lock"
+	if ! flock -n "${KBUILD_LOCK}"; then
+		pr_err "Error: another build process for package ${MKERNEL_KERNEL_NAME} is running."
+	fi
+
+	[[ -z "${MKERNEL_BUILD_DIR}" ]] && {
+		MKERNEL_BUILD_DIR="${MKERNEL_TOP_DIR}/${MKERNEL_DEFCONFIG/_*}"
+	        [[ ! -e "${MKERNEL_BUILD_DIR}" ]] && \
+			mkdir -p ${MKERNEL_BUILD_DIR}
+	}
+
+        [[ -n "${MKERNEL_KSOURCE_URL}" ]] && {
+		download_archieve "${MKERNEL_KSOURCE_URL}" "${MKERNEL_BUILD_DIR}"
+	}
+	trap 'success' EXIT
+	if [[ -n "${MKERNEL_CREATE_LOGFILE}" ]];then
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?} &>> ${MKERNEL_DEFCONFIG}.log
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} &>> ${MKERNEL_DEFCONFIG/_*}_kernel.log
+	else
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?}
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR}
+	fi
+	trap '' EXIT
+	flock -u "${KBUILD_LOCK}"
 }
 
 while getopts "cdfh:pqv" ARG; do
