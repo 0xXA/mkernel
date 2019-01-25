@@ -6,7 +6,6 @@
 #
 # Kernel building script and handling it afterwards.
 
-set -e -o pipefail -u
 umask 0077
 
 set -a 
@@ -86,13 +85,15 @@ function build_kernel {
         [[ -n "${MKERNEL_KSOURCE_URL}" ]] && {
 		download_archieve "${MKERNEL_KSOURCE_URL}" "${MKERNEL_BUILD_DIR}"
 	}
+	trap 'success' EXIT
 	if [[ -n "${MKERNEL_CREATE_LOGFILE}" ]];then 
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?}
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR}
-	else
 		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?} &>> ${MKERNEL_DEFCONFIG}.log
 		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} &>> ${MKERNEL_DEFCONFIG/_*}_kernel.log
+	else
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?}
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR}
 	fi
+	trap '' EXIT
 	flock -u "${KBUILD_LOCK}"
 }
 
