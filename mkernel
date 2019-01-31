@@ -13,7 +13,7 @@ umask 0077
 
 set -a 
 MKERNEL_PROGRAM="$(basename "${0}")"
-MKERNEL_VERSION="0.1-Alpha"
+MKERNEL_VERSION="0.1"
 MKERNEL_ACTION="build_kernel"
 MKERNEL_DISABLE_STDOUT=""
 MKERNEL_PROP_FILE="mkernel.cfg"
@@ -21,6 +21,7 @@ MKERNEL_TOP_DIR="${HOME}/.mkernel"
 MKERNEL_PROP_DIR="`pwd`"
 MKERNEL_BUILD_DIR=""
 MKERNEL_ENABLE_DEBUG_BUILD=""
+MKERNEL_FORCE_REBUILD=""
 set +a
 
 trap '' QUIT
@@ -29,15 +30,15 @@ trap 'abort' HUP INT TERM
 
 function debug_build {
 	set -x
-	PS4='$LINENO '
+	PS4='$LINENO: '
 }
 
 function pr_info { 
-	printf "%b" "\\e[2K\\r\\e[1;32m[\\e[1;31m!\\e[1;32m]\\e[1;36m\t$1\\e[0m\n"
+	printf "%b" "\\e[2K\\r\\e[1;49m[\\e[0m\\e[7;33m?\\e[0m\\e[1;49m]\\e[0m\t\\e[7;37m$1\\e[0m\n"
 }
 
 function pr_err { 
-	printf "%b" "\\e[2K\\r\\e[1;32m[\\e[1;31m!\\e[1;32m]\\e[1;36m\t$1\\e[0m\n"
+	printf "%b" "\\e[2K\\r\\e[1;49m[\\e[0m\\e[7;31m!\\e[0m\\e[1;49m]\\e[0m\t\\e[7;41m$1\\e[0m\n"
 	exit
 }
 
@@ -58,7 +59,7 @@ function get_manifest {
 function read_manifest {
 	set -a
 	MKERNEL_KSOURCE_URL=""
-	MKERNEL_DEFCONFIG=""
+	MKERNEL_TARGET_CONFIG=""
 	MKERNEL_KERNEL_IMG="Image.gz-dtb"
 	set +a
 	if bash -n "${MKERNEL_PROP_FILE}"; then
@@ -141,6 +142,15 @@ function build_kernel {
 	get_manifest
 	read_manifest
 
+	if [[ -z "${MKERNEL_FORCE_REBUILD}" ]]; then
+		[[ -e ${MKERNEL_PROP_DIR}/${MKERNEL_TARGET_CONFIG/_*} ]] && {
+			pr_info "Use '${MKERNEL_PROGRAM} -f' to force rebuild kernel."
+			pr_err "A build directory '${MKERNEL_TARGET_CONFIG/_*}' already exists."
+		}
+	else
+		rm -rf "${MKERNEL_PROP_DIR}/${MKERNEL_TARGET_CONFIG/_*}*"
+	fi
+
 	[[ ! -e ${MKERNEL_TOP_DIR} ]] && \
 		mkdir -p ${MKERNEL_TOP_DIR}
 
@@ -150,7 +160,7 @@ function build_kernel {
 	fi
 
 	[[ -z "${MKERNEL_BUILD_DIR}" ]] && {
-		MKERNEL_BUILD_DIR="${MKERNEL_TOP_DIR}/${MKERNEL_DEFCONFIG/_*}"
+		MKERNEL_BUILD_DIR="${MKERNEL_TOP_DIR}/${MKERNEL_TARGET_CONFIG/_*}"
 	        [[ ! -e "${MKERNEL_BUILD_DIR}" ]] && \
 			mkdir -p ${MKERNEL_BUILD_DIR}
 	}
@@ -158,16 +168,18 @@ function build_kernel {
         [[ -n "${MKERNEL_KSOURCE_URL}" ]] && {
 		download_archieve "${MKERNEL_KSOURCE_URL}" "${MKERNEL_BUILD_DIR}"
 	}
-	trap 'success' EXIT
+
 	if [[ -n "${MKERNEL_CREATE_LOGFILE}" ]];then
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?} &>> ${MKERNEL_DEFCONFIG}.log
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} &>> ${MKERNEL_DEFCONFIG/_*}_kernel.log
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_TARGET_CONFIG:?} &>> ${MKERNEL_TARGET_CONFIG}.log
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} &>> ${MKERNEL_TARGET_CONFIG/_*}_kernel.log
 	else
-		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_DEFCONFIG:?}
+		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR} ${MKERNEL_TARGET_CONFIG:?}
 		make -j${MKERNEL_USE_CORES:-$(nproc)} O=${MKERNEL_BUILD_DIR}
 	fi
-	trap '' EXIT
+
+	trap 'success' EXIT
 	flock -u "${KBUILD_LOCK}"
+	trap '' EXIT
 }
 
 while getopts "cdfh:pqv" ARG; do
