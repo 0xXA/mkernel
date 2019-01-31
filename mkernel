@@ -232,7 +232,7 @@ STDOUT
         ;;
     show_version)
 cat << STDOUT
-                  makekernel ${MKERNEL_VERSION}
+                  ${MKERNEL_PROGRAM} ${MKERNEL_VERSION}
 
 Copyright (C) 2019 Yuvraj Saxena <infectedx27@gmail.com> @TheInfected
 
