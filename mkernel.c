@@ -1,3 +1,4 @@
+#include <libgen.h>
 #include <regex.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -10,32 +11,32 @@
 #include "mkernel.h"
 
 void sigint(int NUM) {
-	if (!isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+	if (isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
 	info(" Intrupted");
 	exit(EXIT_FAILURE);
 }
 
 void sigsegv(int NUM) {
-	if (!isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+	if (isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
 	info(" Malformed Manifest");
 	exit(EXIT_FAILURE);
 }
 
 void sigabrt(int NUM) {
-	if (!isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+	if (isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
 	info("Aborting...");
 	exit(EXIT_FAILURE);
 }
 
-void pr(char type, const char *msg, ...) {
-        va_list args;
-        va_start(args, msg);
-        va_end(args);
-	if (type == 'e') {
-		vfprintf(stderr, msg, args);
+void pr(char TYPE, const char *MSG, ...) {
+        va_list ARGS;
+        va_start(ARGS, MSG);
+        va_end(ARGS);
+	if (TYPE == 'e') {
+		vfprintf(stderr, MSG, ARGS);
 	        abort();
 	} else {
-		vfprintf(stdout, msg, args);
+		vfprintf(stdout, MSG, ARGS);
 	}
 }
 
@@ -48,18 +49,18 @@ int isexist(char *NAME) {
         return 0;
 }
 
-void exec(const char *command, ...) {
+void exec(const char *CMD, ...) {
 
-	char *buf;
-        va_list args;
-        va_start(args, command);
-	int sbuf=vsnprintf(NULL, 0, command, args)+1;
-	buf=(char *)malloc(sbuf);
-	vsnprintf(buf,sbuf,command,args);
-	if (!buf) err("no memory available currently");
-	if (system(buf)) err("failed to execute:\n%s", buf);
-	free(buf);
-        va_end(args);
+	char *BUFF;
+        va_list ARGS;
+        va_start(ARGS, CMD);
+	int SBUFF=vsnprintf(NULL, 0, CMD, ARGS)+1;
+	BUFF=(char *)malloc(SBUFF);
+	vsnprintf(BUFF, SBUFF, CMD, ARGS);
+	if (!BUFF) err("no memory available currently");
+	if (system(BUFF)) err("failed to execute:\n%s", BUFF);
+	free(BUFF);
+        va_end(ARGS);
 }
 
 void set_env(void) {
@@ -85,7 +86,7 @@ void set_env(void) {
 
         DEVICE_CODENAME = getenv("DEVICE_CODENAME");
         DEVICE_CONFIG = getenv("DEVICE_CONFIG");
-
+	MANIFEST_DIR = dirname(realpath(MANIFEST,NULL));
         if ((DEVICE_CODENAME = getenv("DEVICE_CODENAME"))) {;
                 strcpy(BUILD_DIR, getenv("HOME"));
                 strcat(BUILD_DIR, "/");
@@ -96,6 +97,11 @@ void set_env(void) {
 
         regfree(&REGX);
         fclose(MFILE);
+}
+
+void getkernel(void) {
+	exec("find %s/arch/%s/boot -type f -iname '%s' -exec cp {} '%s'",
+			BUILD_DIR,getenv("ARCH"),getenv("TARGET_KERNEL_IMG"),MANIFEST_DIR);
 }
 
 void compile(void) {
@@ -113,14 +119,20 @@ void compile(void) {
         if (!isexist(BUILD_DIR)) exec("bash -c \"mkdir -p %s\"", BUILD_DIR);
 
         if (getenv("CREATE_LOGFILE")) {
-                exec("bash -c \"make -j%d O=%s %s &>/dev/null\"", NRCPU,
+		exec("bash -c \"make -j%d O=%s %s &>/dev/null\"", NRCPU,
                      BUILD_DIR, DEVICE_CONFIG);
-                exec("bash -c \"make -j%d O=%s &>> %s.log\"", NRCPU, BUILD_DIR,
+		if (BCMD)
+			exec(BCMD);
+		else
+			exec("bash -c \"make -j%d O=%s &>> %s.log\"", NRCPU, BUILD_DIR,
                      DEVICE_CODENAME);
         } else {
                 exec("bash -c \"make -j%d O=%d %s\"", NRCPU, BUILD_DIR,
                      DEVICE_CONFIG);
-                exec("bash -c \"make -j%d O=%s\"", NRCPU, BUILD_DIR);
+		if (BCMD)
+			exec(BCMD);
+		else
+			exec("bash -c \"make -j%d O=%s\"", NRCPU, BUILD_DIR);
         }
 }
 
@@ -148,8 +160,11 @@ int main(int argc, char **argv) {
         signal(SIGABRT, sigabrt);
 
         int opt;
-        while ((opt = getopt(argc, argv, ":dfm:vu")) != -1) {
+        while ((opt = getopt(argc, argv, ":c:dfm:vu")) != -1) {
                 switch (opt) {
+			case 'c':
+				BCMD = optarg;
+				break;
                         case 'd':
                                 fclose(stdout);
                                 break;
@@ -174,6 +189,6 @@ int main(int argc, char **argv) {
                 }
         }
 
-        compile();
+	compile();
         return 0;
 }

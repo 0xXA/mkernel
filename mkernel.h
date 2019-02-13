@@ -16,12 +16,14 @@
 
 bool FORCE_REBUILD = false;
 int NRCPU = 8;
-char *MKERNEL_VERSION = "v1.0-Alpha";
+char *MKERNEL_VERSION = "v1.0-Beta";
 char BUILD_DIR[30];
 char *DEVICE_CODENAME;
 char *DEVICE_CONFIG;
-char *MANIFEST = "MANIFEST";  // DEFAULT FILE TO GET REQ. VARS
-void pr(char type, const char *, ...);
+char *MANIFEST="MANIFEST";
+char *MANIFEST_DIR;
+char *BCMD;
+void pr(char, const char *, ...);
 void sigint(int);
 void sigsegv(int);
 void sigabrt(int);
