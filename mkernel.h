@@ -17,7 +17,7 @@
 bool FORCE_REBUILD = false;
 int NRCPU = 8;
 char *MKERNEL_VERSION = "v1.0-Alpha";
-char BUILD_DIR[50];
+char BUILD_DIR[30];
 char *DEVICE_CODENAME;
 char *DEVICE_CONFIG;
 char *MANIFEST = "MANIFEST";  // DEFAULT FILE TO GET REQ. VARS

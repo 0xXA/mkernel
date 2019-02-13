@@ -10,23 +10,33 @@
 #include "mkernel.h"
 
 void sigint(int NUM) {
-	if(!isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
-	err(" Intrupted");
+	if (!isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+	info(" Intrupted");
+	exit(EXIT_FAILURE);
 }
 
-void sigsegv(int NUM) { err(" Malformed Manifest"); }
+void sigsegv(int NUM) {
+	if (!isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+	info(" Malformed Manifest");
+	exit(EXIT_FAILURE);
+}
 
-void sigabrt(int NUM) { err(" Aborting..."); }
+void sigabrt(int NUM) {
+	if (!isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+	info("Aborting...");
+	exit(EXIT_FAILURE);
+}
 
 void pr(char type, const char *msg, ...) {
-        va_list eargs;
-        va_start(eargs, msg);
-        if (type == 'e')
-                vfprintf(stderr, msg, eargs);
-        else
-                vfprintf(stdout, msg, eargs);
-        va_end(eargs);
-	if (type == 'e') exit(EXIT_FAILURE);
+        va_list args;
+        va_start(args, msg);
+        va_end(args);
+	if (type == 'e') {
+		vfprintf(stderr, msg, args);
+	        abort();
+	} else {
+		vfprintf(stdout, msg, args);
+	}
 }
 
 int isexist(char *NAME) {
@@ -38,13 +48,18 @@ int isexist(char *NAME) {
         return 0;
 }
 
-void exec(const char *cmd, ...) {
-        char cbuf[100];
-        va_list cmdargs;
-        va_start(cmdargs, cmd);
-        vsnprintf(cbuf, sizeof(cbuf), cmd, cmdargs);
-        va_end(cmdargs);
-        if (system(cbuf)) err("failed to execute:\n%s", cbuf);
+void exec(const char *command, ...) {
+
+	char *buf;
+        va_list args;
+        va_start(args, command);
+	int sbuf=vsnprintf(NULL, 0, command, args)+1;
+	buf=(char *)malloc(sbuf);
+	vsnprintf(buf,sbuf,command,args);
+	if (!buf) err("no memory available currently");
+	if (system(buf)) err("failed to execute:\n%s", buf);
+	free(buf);
+        va_end(args);
 }
 
 void set_env(void) {
@@ -71,7 +86,7 @@ void set_env(void) {
         DEVICE_CODENAME = getenv("DEVICE_CODENAME");
         DEVICE_CONFIG = getenv("DEVICE_CONFIG");
 
-        if ((DEVICE_CODENAME = getenv("DEVICE_CODENAME"))) {
+        if ((DEVICE_CODENAME = getenv("DEVICE_CODENAME"))) {;
                 strcpy(BUILD_DIR, getenv("HOME"));
                 strcat(BUILD_DIR, "/");
                 strcat(BUILD_DIR, DEVICE_CODENAME);
@@ -110,11 +125,12 @@ void compile(void) {
 }
 
 void usage(void) {
-        err("\nusage:  mkernel [-d] [-m manifest] [-v] [-u]\n\t-d Suppress the "
+        info("\nusage:  mkernel [-d] [-m manifest] [-v] [-u]\n\t-d Suppress the "
             "output but errors may still be "
             "shown.\n\t-m Select arbitrary manifest file.\n\t-v Show version "
             "and "
             "exit.\n\t-u Show usage and exit");
+	exit(EXIT_SUCCESS);
 }
 
 void version(void) {
@@ -132,7 +148,7 @@ int main(int argc, char **argv) {
         signal(SIGABRT, sigabrt);
 
         int opt;
-        while ((opt = getopt(argc, argv, ":dm:vu")) != -1) {
+        while ((opt = getopt(argc, argv, ":dfm:vu")) != -1) {
                 switch (opt) {
                         case 'd':
                                 fclose(stdout);
@@ -140,6 +156,9 @@ int main(int argc, char **argv) {
                         case 'm':
                                 MANIFEST = optarg;
                                 break;
+			case 'f':
+				FORCE_REBUILD=true;
+				break;
                         case 'v':
                                 version();
                                 break;
