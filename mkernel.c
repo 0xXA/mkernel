@@ -1,9 +1,11 @@
 #include <libgen.h>
+#include <linux/limits.h>
 #include <regex.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -32,6 +34,7 @@ void pr(char TYPE, const char *MSG, ...) {
         va_list ARGS;
         va_start(ARGS, MSG);
         va_end(ARGS);
+	
 	if (TYPE == 'e') {
 		vfprintf(stderr, MSG, ARGS);
 	        abort();
@@ -41,7 +44,8 @@ void pr(char TYPE, const char *MSG, ...) {
 }
 
 int isexist(char *NAME) {
-        NAME = realpath(NAME, NULL);
+	char FULL_PATH[PATH_MAX];
+        NAME = realpath(NAME, FULL_PATH);
         struct stat NF;
         stat(NAME, &NF);
         int type = NF.st_mode & S_IFMT;
@@ -64,30 +68,25 @@ void exec(const char *CMD, ...) {
 }
 
 void set_env(void) {
-        FILE *MFILE;
+        FILE *MFILE=NULL;
         char LINE[LMAX];
-        regex_t REGX;
-        size_t REG;
+	char STR[25],STR1[250];
 
         if (!isexist(MANIFEST)) err("%s doesn't exists", MANIFEST);
 
-        MFILE = fopen(MANIFEST, "r+");
-
-        REG = regcomp(&REGX, "^([a-zA-Z0-9_]*)=", REG_EXTENDED);
-
-        if (!MFILE) err("Not enough memory for %s", MANIFEST);
+        MFILE=fopen(MANIFEST, "r+");
+	if (!MFILE) err("Not enough memory for %s", MANIFEST);
 
         while (fgets(LINE, LMAX, MFILE)) {
                 LINE[strlen(LINE) - 1] = '\0';
-                if (!regexec(&REGX, LINE, 0, NULL, 0)) {
-                        setenv(strtok(LINE, "="), strtok(NULL, "="), 1);
-                }
+			if (*LINE != '#' && sscanf(LINE, "%[^=]%*[=]%s", STR, STR1)==2) setenv(STR, STR1, 1);
         }
 
-        DEVICE_CODENAME = getenv("DEVICE_CODENAME");
+	DEVICE_CODENAME = getenv("DEVICE_CODENAME");
         DEVICE_CONFIG = getenv("DEVICE_CONFIG");
-	MANIFEST_DIR = dirname(realpath(MANIFEST,NULL));
-        if ((DEVICE_CODENAME = getenv("DEVICE_CODENAME"))) {;
+	MANIFEST_DIR = dirname(realpath(MANIFEST,LINE));
+        
+	if ((DEVICE_CODENAME = getenv("DEVICE_CODENAME"))) {;
                 strcpy(BUILD_DIR, getenv("HOME"));
                 strcat(BUILD_DIR, "/");
                 strcat(BUILD_DIR, DEVICE_CODENAME);
@@ -95,7 +94,6 @@ void set_env(void) {
                 err("DEVICE_CODENAME is null or not defined");
         }
 
-        regfree(&REGX);
         fclose(MFILE);
 }
 
@@ -121,18 +119,15 @@ void compile(void) {
         if (getenv("CREATE_LOGFILE")) {
 		exec("bash -c \"make -j%d O=%s %s &>/dev/null\"", NRCPU,
                      BUILD_DIR, DEVICE_CONFIG);
-		if (BCMD)
-			exec(BCMD);
-		else
-			exec("bash -c \"make -j%d O=%s &>> %s.log\"", NRCPU, BUILD_DIR,
+		exec("bash -c \"make -j%d O=%s &>> %s.log\"", NRCPU, BUILD_DIR,
                      DEVICE_CODENAME);
-        } else {
-                exec("bash -c \"make -j%d O=%d %s\"", NRCPU, BUILD_DIR,
+        } else if (getenv("CUSTOM_BUILD_CMD")) {
+		exec(getenv("MAKE_DEFCONFIG_CMD"));
+		exec(getenv("MAKE_IMG_CMD"));
+	} else {
+		exec("bash -c \"make -j%d O=%d %s\"", NRCPU, BUILD_DIR,
                      DEVICE_CONFIG);
-		if (BCMD)
-			exec(BCMD);
-		else
-			exec("bash -c \"make -j%d O=%s\"", NRCPU, BUILD_DIR);
+		exec("bash -c \"make -j%d O=%s\"", NRCPU, BUILD_DIR);
         }
 }
 
@@ -160,7 +155,7 @@ int main(int argc, char **argv) {
         signal(SIGABRT, sigabrt);
 
         int opt;
-        while ((opt = getopt(argc, argv, ":c:dfm:vu")) != -1) {
+        while ((opt = getopt(argc, argv, ":c:dflm:vu")) != -1) {
                 switch (opt) {
 			case 'c':
 				BCMD = optarg;
@@ -168,11 +163,15 @@ int main(int argc, char **argv) {
                         case 'd':
                                 fclose(stdout);
                                 break;
-                        case 'm':
-                                MANIFEST = optarg;
-                                break;
 			case 'f':
 				FORCE_REBUILD=true;
+				break;
+			case 'l':
+				freopen( "build.log", "w", stderr );
+				freopen( "build.log", "w", stdout );
+				break;
+			case 'm':
+				MANIFEST = optarg;
 				break;
                         case 'v':
                                 version();
