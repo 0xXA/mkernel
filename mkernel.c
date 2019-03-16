@@ -1,6 +1,5 @@
 #include <libgen.h>
 #include <linux/limits.h>
-#include <regex.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -12,122 +11,120 @@
 #include <unistd.h>
 #include "mkernel.h"
 
-void sigint(int NUM) {
-	if (isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+void sigint(int num) {
+	if (!isexist(build_dir)) exec("rm -rf %s",build_dir);
 	info(" Intrupted");
 	exit(EXIT_FAILURE);
 }
 
-void sigsegv(int NUM) {
-	if (isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
+void sigsegv(int num) {
+	if (!isexist(build_dir)) exec("rm -rf %s",build_dir);
 	info(" Malformed Manifest");
 	exit(EXIT_FAILURE);
 }
 
-void sigabrt(int NUM) {
-	if (isexist(BUILD_DIR)) exec("bash -c \"rm -rf %s\"",BUILD_DIR);
-	info("Aborting...");
+void sigabrt(int num) {
+	if (!isexist(build_dir)) exec("rm -rf %s",build_dir);
+	info(" Aborting...");
 	exit(EXIT_FAILURE);
 }
 
-void pr(char TYPE, const char *MSG, ...) {
-        va_list ARGS;
-        va_start(ARGS, MSG);
-        va_end(ARGS);
+void pr(char type, const char *msg, ...) {
+        va_list args;
+        va_start(args, msg);
+        va_end(args);
 	
-	if (TYPE == 'e') {
-		vfprintf(stderr, MSG, ARGS);
+	if (type == 'e') {
+		vfprintf(stderr, msg, args);
 	        abort();
 	} else {
-		vfprintf(stdout, MSG, ARGS);
+		vfprintf(stdout, msg, args);
 	}
 }
 
-int isexist(char *NAME) {
-	char FULL_PATH[PATH_MAX];
-        NAME = realpath(NAME, FULL_PATH);
-        struct stat NF;
-        stat(NAME, &NF);
-        int type = NF.st_mode & S_IFMT;
+int isexist(char *name) {
+	char full_path[200];
+        name = realpath(name, full_path);
+        struct stat nf;
+        stat(name, &nf);
+        int type = nf.st_mode & S_IFMT;
         if (type == S_IFDIR || type == S_IFREG) return 1;
         return 0;
 }
 
-void exec(const char *CMD, ...) {
-
-	char *BUFF;
-        va_list ARGS;
-        va_start(ARGS, CMD);
-	int SBUFF=vsnprintf(NULL, 0, CMD, ARGS)+1;
-	BUFF=(char *)malloc(SBUFF);
-	vsnprintf(BUFF, SBUFF, CMD, ARGS);
-	if (!BUFF) err("no memory available currently");
-	if (system(BUFF)) err("failed to execute:\n%s", BUFF);
-	free(BUFF);
-        va_end(ARGS);
+void exec(const char *cmd, ...) {
+	char buff[200];
+        va_list args;
+        va_start(args, cmd);
+	vsprintf(buff, cmd, args);
+	if (!buff) err("no memory available currently");
+	if (system(buff)) err("failed to execute:\n%s", buff);
+        va_end(args);
 }
 
 void set_env(void) {
-        FILE *MFILE=NULL;
-        char LINE[LMAX];
-	char STR[25],STR1[250];
+        FILE *mfile=NULL;
+        char line[250]="";
+	char str[25]="";
+	char str1[150]="";
 
-        if (!isexist(MANIFEST)) err("%s doesn't exists", MANIFEST);
+        if (!isexist(manifest)) err("%s doesn't exists", manifest);
 
-        MFILE=fopen(MANIFEST, "r+");
-	if (!MFILE) err("Not enough memory for %s", MANIFEST);
+        mfile=fopen(manifest, "r+");
+	if (!mfile) err("not enough memory for %s", manifest);
 
-        while (fgets(LINE, LMAX, MFILE)) {
-                LINE[strlen(LINE) - 1] = '\0';
-			if (*LINE != '#' && sscanf(LINE, "%[^=]%*[=]%s", STR, STR1)==2) setenv(STR, STR1, 1);
+        while (fgets(line, 250, mfile)) {
+                line[strlen(line) - 1] = '\0';
+			if (*line != '#' && sscanf(line, "%[^=]%*[=]%s", str, str1)==2) setenv(str, str1, 1);
         }
-
-	DEVICE_CODENAME = getenv("DEVICE_CODENAME");
-        DEVICE_CONFIG = getenv("DEVICE_CONFIG");
-	MANIFEST_DIR = dirname(realpath(MANIFEST,LINE));
+	
+	memset(line,0,sizeof(line));
+	device_codename = getenv("device_codename");
+        device_config = getenv("device_config");
+	manifest_dir = dirname(realpath(manifest,line));
         
-	if ((DEVICE_CODENAME = getenv("DEVICE_CODENAME"))) {;
-                strcpy(BUILD_DIR, getenv("HOME"));
-                strcat(BUILD_DIR, "/");
-                strcat(BUILD_DIR, DEVICE_CODENAME);
+	if ((device_codename = getenv("device_codename"))) {
+		if (!build_dir && !(build_dir = getenv("build_dir"))) {
+			build_dir=(char*) calloc(strlen(getenv("HOME"))+strlen(device_codename)+11,sizeof(char));
+			strcpy(build_dir, getenv("HOME"));
+                	strcat(build_dir, "/");
+			strcat(build_dir, ".mkernel");
+			strcat(build_dir, "/");
+                	strcat(build_dir, device_codename);
+		}
         } else {
-                err("DEVICE_CODENAME is null or not defined");
+                err("device_codename is null or not defined");
         }
 
-        fclose(MFILE);
+        fclose(mfile);
 }
 
 void getkernel(void) {
 	exec("find %s/arch/%s/boot -type f -iname '%s' -exec cp {} '%s'",
-			BUILD_DIR,getenv("ARCH"),getenv("TARGET_KERNEL_IMG"),MANIFEST_DIR);
+			build_dir,getenv("ARCH"),getenv("mkernel_target_kernel_img"),manifest_dir);
 }
 
 void compile(void) {
         set_env();
 
-        if (!FORCE_REBUILD) {
-                if (isexist(BUILD_DIR)) {
+        if (!force_rebuild) {
+                if (isexist(build_dir)) {
                         err("\n%s exists use\n'mkernel -f' to rebuild",
-                            BUILD_DIR);
+                            build_dir);
                 }
         } else {
-                exec("bash -c \"rm -rf %s\"", BUILD_DIR);
+                exec("rm -rf %s", build_dir);
         }
 
-        if (!isexist(BUILD_DIR)) exec("bash -c \"mkdir -p %s\"", BUILD_DIR);
+       if (!isexist(build_dir)) exec("mkdir -p %s",build_dir);
 
-        if (getenv("CREATE_LOGFILE")) {
-		exec("bash -c \"make -j%d O=%s %s &>/dev/null\"", NRCPU,
-                     BUILD_DIR, DEVICE_CONFIG);
-		exec("bash -c \"make -j%d O=%s &>> %s.log\"", NRCPU, BUILD_DIR,
-                     DEVICE_CODENAME);
-        } else if (getenv("CUSTOM_BUILD_CMD")) {
-		exec(getenv("MAKE_DEFCONFIG_CMD"));
-		exec(getenv("MAKE_IMG_CMD"));
+        if (getenv("cust_cfg_make_cmd") && getenv("cust_img_make_cmd")) {
+		exec("%s O=%s", getenv("cust_cfg_make_cmd"), build_dir);
+		exec("%s O=%s", getenv("cust_img_make_cmd"), build_dir);
 	} else {
-		exec("bash -c \"make -j%d O=%d %s\"", NRCPU, BUILD_DIR,
-                     DEVICE_CONFIG);
-		exec("bash -c \"make -j%d O=%s\"", NRCPU, BUILD_DIR);
+		exec("make -j%d O=%s %s", nrcpu, build_dir,
+                     device_config);
+		exec("make -j%d o=%s", nrcpu, build_dir);
         }
 }
 
@@ -145,7 +142,7 @@ void version(void) {
             "<infectedx27@gmail.com> @TheInfected\nThis is free software see "
             "the source for copying conditions. There is NO warranty not even "
             "for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
-            MKERNEL_VERSION);
+            mkernel_version);
 	exit(EXIT_SUCCESS);
 }
 
@@ -155,23 +152,20 @@ int main(int argc, char **argv) {
         signal(SIGABRT, sigabrt);
 
         int opt;
-        while ((opt = getopt(argc, argv, ":c:dflm:vu")) != -1) {
+        while ((opt = getopt(argc, argv, ":fl:m:o:vu")) != -1) {
                 switch (opt) {
-			case 'c':
-				BCMD = optarg;
-				break;
-                        case 'd':
-                                fclose(stdout);
-                                break;
 			case 'f':
-				FORCE_REBUILD=true;
+				force_rebuild=true;
 				break;
 			case 'l':
-				freopen( "build.log", "w", stderr );
-				freopen( "build.log", "w", stdout );
+				freopen(optarg, "w", stderr );
+				freopen(optarg, "w", stdout );
 				break;
 			case 'm':
-				MANIFEST = optarg;
+				manifest = optarg;
+				break;
+			case 'o':
+				build_dir = optarg;
 				break;
                         case 'v':
                                 version();
@@ -189,5 +183,6 @@ int main(int argc, char **argv) {
         }
 
 	compile();
+
         return 0;
 }

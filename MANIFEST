@@ -1,3 +1,0 @@
-DEVICE_CODENAME=yoshino
-CREATE_LOGFILE=true
-DEVICE_CONFIG=yoshino_defconfig

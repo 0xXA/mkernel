@@ -12,22 +12,20 @@
            "\033[2K\r\033[1;49m[\033[0m\033[7;31m!\033[0m\033[1;49m]" \
            "\033[7;41m " fmt "\033[0m\n",                              \
            ##__VA_ARGS__);
-#define LMAX 150
 
-bool FORCE_REBUILD = false;
-int NRCPU = 8;
-char *MKERNEL_VERSION = "v1.0-Beta";
-char BUILD_DIR[30];
-char *DEVICE_CODENAME;
-char *DEVICE_CONFIG;
-char *MANIFEST="MANIFEST";
-char *MANIFEST_DIR;
-char *BCMD;
-void pr(char, const char *, ...);
+bool force_rebuild = false;
+int nrcpu = 8;
+char *mkernel_version = "v1.0";
+char *build_dir=NULL;
+char *device_codename=NULL;
+char *device_config=NULL;
+char *manifest="manifest";
+char *manifest_dir=NULL;
+void pr(char, const char*, ...);
 void sigint(int);
 void sigsegv(int);
 void sigabrt(int);
-int isexist(char *NAME);
+int isexist(char*);
 void exec(const char*, ...);
 void set_env(void);
 void clean(void);
