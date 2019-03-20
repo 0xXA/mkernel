@@ -36,14 +36,14 @@ void pr(char type, const char *msg, ...) {
 	
 	if (type == 'e') {
 		vfprintf(stderr, msg, args);
-	        abort();
+		exit(EXIT_FAILURE);
 	} else {
 		vfprintf(stdout, msg, args);
 	}
 }
 
 int isexist(char *name) {
-	char full_path[200];
+	char full_path[250];
         name = realpath(name, full_path);
         struct stat nf;
         stat(name, &nf);
@@ -53,7 +53,7 @@ int isexist(char *name) {
 }
 
 void exec(const char *cmd, ...) {
-	char buff[200];
+	char buff[300];
         va_list args;
         va_start(args, cmd);
 	vsprintf(buff, cmd, args);
@@ -65,8 +65,7 @@ void exec(const char *cmd, ...) {
 void set_env(void) {
         FILE *mfile=NULL;
         char line[250]="";
-	char str[25]="";
-	char str1[150]="";
+	char *str, *str1;
 
         if (!isexist(manifest)) err("%s doesn't exists", manifest);
 
@@ -82,7 +81,21 @@ void set_env(void) {
 	device_codename = getenv("device_codename");
         device_config = getenv("device_config");
 	manifest_dir = dirname(realpath(manifest,line));
-        
+/*
+	if (getenv("mkernel_toolchain_dir")) {
+		mkernel_toolchain_dir=(char *) calloc(strlen(getenv("mkernel_toolchain_dir"))+19,sizeof(char));
+		
+		strcpy(mkernel_toolchain_dir,"export PATH=");
+		strcat(mkernel_toolchain_dir,getenv("mkernel_toolchain_dir"));
+		strcat(mkernel_toolchain_dir,":");
+		strcat(mkernel_toolchain_dir,"$PATH");
+		system(mkernel_toolchain_dir);
+		printf("%s\n",mkernel_toolchain_dir);
+		err("exited it was a test for mkernel_toolchain_dir");
+	} else {
+		err("toolchain directory not specified");
+	}
+  */      
 	if ((device_codename = getenv("device_codename"))) {
 		if (!build_dir && !(build_dir = getenv("build_dir"))) {
 			build_dir=(char*) calloc(strlen(getenv("HOME"))+strlen(device_codename)+11,sizeof(char));
@@ -116,7 +129,7 @@ void compile(void) {
                 exec("rm -rf %s", build_dir);
         }
 
-       if (!isexist(build_dir)) exec("mkdir -p %s",build_dir);
+       if (!isexist(build_dir)) mkdir(build_dir, 0700);
 
         if (getenv("cust_cfg_make_cmd") && getenv("cust_img_make_cmd")) {
 		exec("%s O=%s", getenv("cust_cfg_make_cmd"), build_dir);

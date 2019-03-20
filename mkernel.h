@@ -20,6 +20,7 @@ char *build_dir=NULL;
 char *device_codename=NULL;
 char *device_config=NULL;
 char *manifest="manifest";
+//char *mkernel_toolchain_dir=NULL;
 char *manifest_dir=NULL;
 void pr(char, const char*, ...);
 void sigint(int);

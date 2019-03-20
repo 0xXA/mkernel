@@ -1,3 +1,4 @@
 device_codename=yoshino
 device_config=yoshino_defconfig
 build_dir=$PWD/t
+mkernel_toolchain_dir=sonu
